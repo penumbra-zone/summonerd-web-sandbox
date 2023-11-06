@@ -23,10 +23,10 @@ const circleArcPath = (r: number) => `
   a ${r},${r} 0 1,0 ${-r * 2},0
 `;
 
-const rootWaves: Array<Wave> = [
-  { amplitude: 6, frequency: 3, phase: Math.PI * Math.random() },
-  { amplitude: 4, frequency: 5, phase: Math.PI * Math.random() },
-  { amplitude: 2, frequency: 7, phase: Math.PI * Math.random() },
+const selectRootWaves = () => [
+  { amplitude: 6, frequency: 3, phase: 2 * Math.PI * Math.random() },
+  { amplitude: 4, frequency: 5, phase: 2 * Math.PI * Math.random() },
+  { amplitude: 2, frequency: 7, phase: 2 * Math.PI * Math.random() },
 ];
 
 const interference = (angleR: number, waves: Array<Wave>) =>
@@ -75,19 +75,31 @@ const radialToBezier = (
   return pathSegments.join(" ");
 };
 
-const radialDists = radial(RESOLUTION, rootWaves);
+const generatePathValues = () => {
+  const rootWaves = selectRootWaves();
+  return Array.from({ length: NUMBER_OF_RINGS })
+    .map((_, i) => {
+      const iSq = i * i;
+      return radialToBezier(
+        radial(RESOLUTION, rootWaves),
+        baseRadius + iSq,
+        iSq * 0.09,
+        [0, iSq + i],
+      );
+    })
+    .reverse();
+};
 
 const generatedSvg = document.createElementNS(svgNS, "svg");
-generatedSvg.setAttribute("width", "1000");
-generatedSvg.setAttribute("height", "1000");
-generatedSvg.setAttribute("viewBox", "-500 -250 1000 1000");
-
-const shrinkingPath = Array.from({ length: NUMBER_OF_RINGS }).map((_, i) => {
-  const iSq = i * i;
-  return radialToBezier(radialDists, baseRadius + iSq, iSq * 0.09, [0, iSq]);
+generatedSvg.setAttribute("viewBox", "-400 -200 800 800");
+Object.assign(generatedSvg.style, {
+  opacity: "0.9",
+  position: "fixed",
+  top: "0",
+  left: "0",
+  width: "100%",
+  height: "100%",
 });
-
-const animShrinkingValues = shrinkingPath.reverse().join(";");
 
 generatedSvg.innerHTML = `
   <defs>
@@ -98,63 +110,85 @@ generatedSvg.innerHTML = `
     </radialGradient>
 
   </defs>
-  <path id="coreCircle"
-    d="${circleArcPath(baseRadius)}"
-    opacity="0" fill="black" stroke-width="4"
-  >
-    <animate 
-      attributeName="stroke" values="white;black;black"
-      begin="${dur}s" dur="${dur}s" repeatCount="indefinite"
-    />
-    <animate
-      attributeName="opacity" values="1;0;0;0.5;0.2"
-      begin="${dur}s" dur="${dur}s" repeatCount="indefinite"
-    />
-  </path>
-`;
-
-const movingPath = document.createElementNS(svgNS, "path");
-movingPath.setAttribute("id", "movingPath");
-movingPath.setAttribute("stroke-width", "3");
-movingPath.setAttribute("fill", "none");
-movingPath.setAttribute("stroke", "url(#rgrad3)");
-movingPath.innerHTML = `
-    <animate
-      attributeName="d" values="${animShrinkingValues}"
+  <path id="movingPath" stroke-width="3" fill="none" stroke="url(#rgrad3)">
+    <animate id="movingPathAnimation"
+      attributeName="d" values="${/* dummy to start anim */ "M 0,0;M 0,0"}"
       dur="${dur}s" repeatCount="indefinite"
     />
     <animate
       attributeName="opacity" values="0;0;1;1;1"
       dur="${dur}s" repeatCount="indefinite"
     />
-  `;
-generatedSvg.appendChild(movingPath);
-
-shrinkingPath.splice(0, shrinkingPath.length / 2);
-
-for (let i = 0; i < shrinkingPath.length - 3; i++) {
-  const pathString = shrinkingPath[i];
-  const tracerPath = document.createElementNS(svgNS, "path");
-  tracerPath.setAttribute("class", "tracerPath");
-  tracerPath.setAttribute("d", pathString);
-  tracerPath.setAttribute("fill", "none");
-  tracerPath.setAttribute("stroke", "url(#rgrad3)");
-  tracerPath.setAttribute("opacity", "0");
-  const stayOn = dur / 2 + ((i + 0.5) / (shrinkingPath.length - 1)) * (dur / 2);
-  tracerPath.innerHTML = `
+  </path>
+  <path id="coreCircle"
+    d="${circleArcPath(baseRadius)}"
+    opacity="0" fill="black" stroke-width="4"
+  >
+    <animate 
+      attributeName="stroke" values="white;black;black"
+      begin="${dur}s;movingPath.end" dur="${dur}s" repeatCount="indefinite"
+    />
     <animate
-      attributeName="opacity" values="1;1;0;0;0"
-      begin="${stayOn}" dur="${dur}s" repeatCount="indefinite"
+      attributeName="opacity" values="1;0;0;0.5;0.2"
+      begin="${dur}s;movingPath.end" dur="${dur}s" repeatCount="indefinite"
+    />
+  </path>
+  <g id="tracerGroup0"></g>
+  <g id="tracerGroup1"></g>
+  `;
+
+const movingPathAnimation = generatedSvg.querySelector("#movingPathAnimation")!;
+const tracerGroups = [
+  generatedSvg.querySelector("#tracerGroup0")!,
+  generatedSvg.querySelector("#tracerGroup1")!,
+];
+let tracerGroupIdx = 0;
+
+let pathValues = generatePathValues();
+const generateTracerPaths = (idx) =>
+  pathValues
+    .slice(pathValues.length / 2)
+    .map((_, i, paths) => {
+      const tracer = document.createElementNS(svgNS, "path");
+      tracer.setAttribute("class", "tracerPath");
+      tracer.setAttribute("d", _);
+      tracer.setAttribute("fill", "none");
+      tracer.setAttribute("stroke", "url(#rgrad3)");
+      tracer.setAttribute("opacity", "0");
+      const stayOn = dur / 2 + ((i + 1.333) / (paths.length - 1)) * (dur / 2);
+      tracer.innerHTML = `
+    <animate
+      attributeName="opacity" values="1;1;0;0;0;0;0;0;0;0"
+      begin="${stayOn + dur * idx}" dur="${dur * 2}s" 
+      repeatCount="indefinite"
     />
   `;
+      return tracer;
+    })
+    .slice(0, -2);
 
-  generatedSvg.appendChild(tracerPath);
-}
+const tracerGroupElements = [generateTracerPaths(0), generateTracerPaths(1)];
 
-generatedSvg.style.position = "fixed";
-generatedSvg.style.top = "0";
-generatedSvg.style.left = "0";
-generatedSvg.style.width = "100%";
-generatedSvg.style.height = "100%";
+const setPaths = () => {
+  console.log("pathValues", { pathValues, movingPathAnimation });
+  movingPathAnimation.setAttribute(
+    "values",
+    pathValues.filter((_, i) => !(i % 3)).join(";"),
+  );
+
+  const onGroup = tracerGroupElements[tracerGroupIdx];
+  const offGroup = tracerGroups[tracerGroupIdx];
+  offGroup.innerHTML = "";
+  generateTracerPaths(tracerGroupIdx).forEach((tracer) =>
+    offGroup.appendChild(tracer),
+  );
+
+  tracerGroupIdx = Number(!tracerGroupIdx);
+  pathValues = generatePathValues();
+  console.log("pathValues new", { pathValues, movingPathAnimation, onGroup });
+};
+
+setPaths();
+setInterval(setPaths, dur * 1000);
 
 document.body.appendChild(generatedSvg);
