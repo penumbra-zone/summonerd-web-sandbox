@@ -1,4 +1,4 @@
-export const penumbraAnimation = () => {
+document.addEventListener("DOMContentLoaded", () => {
   const svgNS = "http://www.w3.org/2000/svg";
 
   const pnCyan = "#8be4d9";
@@ -173,7 +173,6 @@ export const penumbraAnimation = () => {
   const tracerGroupElements = [generateTracerPaths(0), generateTracerPaths(1)];
 
   const setPaths = () => {
-    console.log("pathValues", { pathValues, movingPathAnimation });
     movingPathAnimation.setAttribute(
       "values",
       pathValues.filter((_, i) => !(i % 3)).join(";"),
@@ -188,11 +187,10 @@ export const penumbraAnimation = () => {
 
     tracerGroupIdx = Number(!tracerGroupIdx);
     pathValues = generatePathValues();
-    console.log("pathValues new", { pathValues, movingPathAnimation, onGroup });
   };
 
   setPaths();
   setInterval(setPaths, dur * 1000);
 
   document.body.appendChild(generatedSvg);
-};
+});
